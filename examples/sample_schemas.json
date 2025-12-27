@@ -1,0 +1,33 @@
+[
+  {
+    "table": "users",
+    "columns": [
+      {"name": "id", "type": "int", "primary": true},
+      {"name": "email", "type": "varchar(255)", "nullable": false},
+      {"name": "name", "type": "varchar(100)"},
+      {"name": "created_at", "type": "timestamp"}
+    ],
+    "description": "User accounts and authentication data"
+  },
+  {
+    "table": "orders",
+    "columns": [
+      {"name": "id", "type": "int", "primary": true},
+      {"name": "user_id", "type": "int", "nullable": false},
+      {"name": "total", "type": "decimal(10,2)"},
+      {"name": "status", "type": "varchar(50)"},
+      {"name": "created_at", "type": "timestamp"}
+    ],
+    "description": "Customer orders with status tracking"
+  },
+  {
+    "table": "products",
+    "columns": [
+      {"name": "id", "type": "int", "primary": true},
+      {"name": "name", "type": "varchar(200)"},
+      {"name": "price", "type": "decimal(10,2)"},
+      {"name": "stock", "type": "int"}
+    ],
+    "description": "Product catalog with pricing and inventory"
+  }
+]

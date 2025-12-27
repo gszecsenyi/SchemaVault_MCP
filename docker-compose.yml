@@ -1,0 +1,21 @@
+services:
+  schemavault:
+    build: .
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./data:/app/data
+    networks:
+      - default
+      - embeddingqueue_default
+    environment:
+      - EMBEDDING_API_URL=${EMBEDDING_API_URL:-http://embeddingqueue-server-1:8000/v1}
+      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY:-your-secret-token}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-nomic-embed-text}
+      - DATABRICKS_HOST=${DATABRICKS_HOST:-}
+      - DATABRICKS_TOKEN=${DATABRICKS_TOKEN:-}
+      - DATABRICKS_CATALOGS=${DATABRICKS_CATALOGS:-main}
+
+networks:
+  embeddingqueue_default:
+    external: true
