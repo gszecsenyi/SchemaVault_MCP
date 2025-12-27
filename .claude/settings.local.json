@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(docker-compose build:*)",
-      "Bash(docker logs:*)"
+      "Bash(docker logs:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(DATABRICKS_CATALOGS=willibald_tables docker-compose up:*)"
     ]
   }
 }
