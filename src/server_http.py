@@ -5,8 +5,8 @@ from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.types import Tool, TextContent
 from starlette.applications import Starlette
-from starlette.routing import Route, Mount
-from starlette.responses import JSONResponse
+from starlette.routing import Route
+from starlette.responses import JSONResponse, Response
 
 from .embedding import EmbeddingService
 from .vector_store import VectorStore
@@ -175,11 +175,13 @@ async def handle_sse(request):
         await mcp_server.run(
             streams[0], streams[1], mcp_server.create_initialization_options()
         )
+    return Response()
 
 
 async def handle_messages(request):
     """Handle POST messages for MCP (POST /mcp/messages)."""
     await sse.handle_post_message(request.scope, request.receive, request._send)
+    return Response()
 
 
 async def health(request):
