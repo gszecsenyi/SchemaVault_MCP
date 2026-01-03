@@ -1,12 +1,10 @@
 """HTTP/SSE MCP server for LM Studio and other HTTP-based clients."""
 import os
+import json
 import logging
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.types import Tool, TextContent
-from starlette.applications import Starlette
-from starlette.routing import Route, Mount
-from starlette.responses import JSONResponse
 
 from .embedding import EmbeddingService
 from .vector_store import VectorStore
@@ -167,37 +165,56 @@ def load_databricks_schemas():
         logger.error(f"Failed to load Databricks schemas: {e}")
 
 
-async def handle_sse(request):
-    """Handle SSE connections for MCP (GET /mcp/sse)."""
-    async with sse.connect_sse(
-        request.scope, request.receive, request._send
-    ) as streams:
-        await mcp_server.run(
-            streams[0], streams[1], mcp_server.create_initialization_options()
-        )
-
-
-async def handle_messages(request):
-    """Handle POST messages for MCP (POST /mcp/messages)."""
-    await sse.handle_post_message(request.scope, request.receive, request._send)
-
-
-async def health(request):
-    """Health check endpoint."""
-    return JSONResponse({"status": "ok", "tables": len(schema_storage.list_all())})
-
-
 # Load schemas on module import
 load_databricks_schemas()
 
-# Create Starlette app with proper MCP routes
-app = Starlette(
-    routes=[
-        Route("/mcp/sse", endpoint=handle_sse),
-        Route("/mcp/messages", endpoint=handle_messages, methods=["POST"]),
-        Route("/health", endpoint=health),
-    ]
-)
+
+async def app(scope, receive, send):
+    """Raw ASGI application."""
+    if scope["type"] != "http":
+        return
+
+    path = scope["path"]
+    method = scope["method"]
+
+    # Health check endpoint
+    if path == "/health" and method == "GET":
+        body = json.dumps({"status": "ok", "tables": len(schema_storage.list_all())})
+        await send({
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [[b"content-type", b"application/json"]],
+        })
+        await send({
+            "type": "http.response.body",
+            "body": body.encode(),
+        })
+        return
+
+    # SSE endpoint for MCP
+    if path == "/mcp/sse" and method == "GET":
+        async with sse.connect_sse(scope, receive, send) as streams:
+            await mcp_server.run(
+                streams[0], streams[1], mcp_server.create_initialization_options()
+            )
+        return
+
+    # Messages endpoint for MCP
+    if path.startswith("/mcp/messages") and method == "POST":
+        await sse.handle_post_message(scope, receive, send)
+        return
+
+    # 404 for unknown routes
+    await send({
+        "type": "http.response.start",
+        "status": 404,
+        "headers": [[b"content-type", b"text/plain"]],
+    })
+    await send({
+        "type": "http.response.body",
+        "body": b"Not Found",
+    })
+
 
 if __name__ == "__main__":
     import uvicorn

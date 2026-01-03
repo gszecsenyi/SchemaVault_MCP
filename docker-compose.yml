@@ -15,6 +15,7 @@ services:
       - DATABRICKS_HOST=${DATABRICKS_HOST:-}
       - DATABRICKS_TOKEN=${DATABRICKS_TOKEN:-}
       - DATABRICKS_CATALOGS=${DATABRICKS_CATALOGS:-main}
+      - DATABRICKS_SCHEMAS=${DATABRICKS_SCHEMAS:-}
 
 networks:
   embeddingqueue_default:

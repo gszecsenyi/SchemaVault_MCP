@@ -96,6 +96,7 @@ Add to `claude_desktop_config.json`:
 | `DATABRICKS_HOST` | - | Databricks workspace URL |
 | `DATABRICKS_TOKEN` | - | Databricks PAT |
 | `DATABRICKS_CATALOGS` | `main` | Catalogs to load (`main`, `a,b`, or `*`) |
+| `DATABRICKS_SCHEMAS` | (all) | Schemas to load (optional: `schema1,schema2` or `*`) |
 
 ## Storage
 
