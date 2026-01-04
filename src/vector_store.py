@@ -29,6 +29,14 @@ class VectorStore:
         self._save()
         return item_id
 
+    def delete(self, item_id: int):
+        """Mark a vector as deleted."""
+        try:
+            self.index.mark_deleted(item_id)
+            self._save()
+        except RuntimeError:
+            pass  # Item may not exist or already deleted
+
     def search(self, embedding: list[float], k: int = 5) -> list[tuple[int, float]]:
         if self.index.get_current_count() == 0:
             return []

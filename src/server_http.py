@@ -28,8 +28,6 @@ def cleanup_data():
             logger.info(f"Deleted {filepath}")
 
 
-cleanup_data()
-
 # Initialize services
 embedding_service = EmbeddingService()
 vector_store = VectorStore(DATA_DIR)
@@ -97,10 +95,11 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     if name == "add_schema":
         schema = TableSchema(**arguments)
+        schema_hash = schema_storage.compute_hash(schema)
         text = schema_storage.to_text(schema)
         embedding = embedding_service.embed(text)
         vector_id = vector_store.add(embedding)
-        schema_storage.add(vector_id, schema)
+        schema_storage.add(vector_id, schema, schema_hash)
         return [TextContent(type="text", text=f"Stored schema for table '{schema.table}' with ID {vector_id}")]
 
     elif name == "query_model":
@@ -138,7 +137,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
 
 def load_databricks_schemas():
-    """Load schemas from Databricks Unity Catalog on startup."""
+    """Load schemas from Databricks Unity Catalog, only embedding changed schemas."""
     if not os.getenv("DATABRICKS_HOST") or not os.getenv("DATABRICKS_TOKEN"):
         logger.info("Databricks env vars not set. Skipping auto-load.")
         return
@@ -152,14 +151,55 @@ def load_databricks_schemas():
 
         logger.info(f"Found {len(schemas)} tables in catalogs '{loader.catalogs_filter}'")
 
+        # Track existing tables for deletion detection
+        existing_tables = set(schema_storage.list_all())
+        new_tables = set()
+        stats = {"added": 0, "updated": 0, "unchanged": 0, "removed": 0}
+
         for schema in schemas:
+            table_name = schema.table
+            new_tables.add(table_name)
+            new_hash = schema_storage.compute_hash(schema)
+            existing_hash = schema_storage.get_hash_by_name(table_name)
+
+            if existing_hash == new_hash:
+                # Schema unchanged, skip embedding
+                stats["unchanged"] += 1
+                continue
+
+            if existing_hash is not None:
+                # Schema changed, remove old version
+                old_vector_id = schema_storage.get_vector_id_by_name(table_name)
+                if old_vector_id is not None:
+                    vector_store.delete(old_vector_id)
+                    schema_storage.remove(old_vector_id)
+                stats["updated"] += 1
+                logger.info(f"Updated: {table_name}")
+            else:
+                stats["added"] += 1
+                logger.info(f"Added: {table_name}")
+
+            # Embed and store the new/updated schema
             text = schema_storage.to_text(schema)
             embedding = embedding_service.embed(text)
             vector_id = vector_store.add(embedding)
-            schema_storage.add(vector_id, schema)
-            logger.info(f"Stored: {schema.table}")
+            schema_storage.add(vector_id, schema, new_hash)
 
-        logger.info("Databricks schema load complete.")
+        # Remove schemas that no longer exist in Databricks
+        removed_tables = existing_tables - new_tables
+        for table_name in removed_tables:
+            vector_id = schema_storage.get_vector_id_by_name(table_name)
+            if vector_id is not None:
+                vector_store.delete(vector_id)
+                schema_storage.remove(vector_id)
+                stats["removed"] += 1
+                logger.info(f"Removed: {table_name}")
+
+        logger.info(
+            f"Databricks schema load complete. "
+            f"Added: {stats['added']}, Updated: {stats['updated']}, "
+            f"Unchanged: {stats['unchanged']}, Removed: {stats['removed']}"
+        )
 
     except Exception as e:
         logger.error(f"Failed to load Databricks schemas: {e}")
